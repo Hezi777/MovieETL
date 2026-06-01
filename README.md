@@ -1,179 +1,114 @@
-# 🎬 IMDB Movies ETL Pipeline
+# IMDb Movies ETL Pipeline
 
-A simple, end‑to‑end Extract‑Transform‑Load (ETL) pipeline that ingests raw IMDb data, cleans and transforms it with Pandas, and loads it into a PostgreSQL database via SQLAlchemy. It splits out movies and their genres into two normalized tables for easy querying and BI integration.
+An end-to-end ETL pipeline that ingests raw IMDb data, cleans and transforms it with Pandas, and loads it into a PostgreSQL database via SQLAlchemy. Splits movies and genres into two normalized tables for easy querying.
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 .
-├── .gitattributes
-├── .gitignore
-├── ETL file.ipynb        ← Jupyter notebook with the full ETL workflow
-├── README.md             ← This file
-└── requirements.txt      ← Python dependencies
+├── ETL file.ipynb        <- Jupyter notebook with the full ETL workflow
+├── requirements.txt      <- Python dependencies
+└── assets/
+    └── erd_screenshot.png
 ```
 
 ---
 
-## ⚙️ Prerequisites & Setup
+## Prerequisites & Setup
 
-1. **Clone this repo**
+**Prerequisites:** Python 3.8+, PostgreSQL, pip
 
-   ```bash
-   git clone https://github.com/your‑username/movie‑etl‑pipeline.git
-   cd movie‑etl‑pipeline
-   ```
+```bash
+git clone https://github.com/Hezi777/MovieETL.git
+cd MovieETL
+python -m venv venv
+source venv/bin/activate      # macOS/Linux
+# venv\Scripts\activate       # Windows
+pip install -r requirements.txt
+```
 
-2. **Create & activate a virtual environment**
+In the notebook's first code cell, update the connection URL:
 
-   ```bash
-   python -m venv venv
-   source venv/bin/activate      # macOS/Linux
-   venv\Scripts\activate       # Windows
-   ```
-
-3. **Install dependencies**
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configure your PostgreSQL connection**\
-   In the notebook’s first code cell, update the `create_engine(...)` URL to match your database:
-
-   ```python
-   engine = create_engine(
-     "postgresql://<username>:<password>@<host>:<port>/<database>"
-   )
-   ```
+```python
+engine = create_engine(
+    "postgresql://<username>:<password>@<host>:<port>/<database>"
+)
+```
 
 ---
 
-## 🗺️ ETL Workflow Overview
+## ETL Workflow
 
-1.
+### 1. Extract
 
-   ### 📥 Extract
+Load IMDb TSV files from [IMDb Datasets](https://www.imdb.com/interfaces/):
+- `title.basics.tsv.gz` - movie metadata
+- `title.ratings.tsv.gz` - user ratings
 
-   - Load IMDb TSV files from: [IMDb Datasets](https://www.imdb.com/interfaces/)
-      - `title.basics.tsv.gz` (movie metadata)
-      - `title.ratings.tsv.gz` (user ratings)
+### 2. Transform
 
-2.
+- Clean nulls (`\N` to `None`)
+- Convert types: years to integers, ratings to floats, votes to big integers
+- Filter to `"movie"` entries only
+- Normalize genres: explode the list into separate rows
 
-   ### 🧹 Transform
+### 3. Load
 
-   - **Clean nulls** (`\N` → `NaN` → `None`)
-   - **Convert types**: years → integers, ratings → floats, votes → big integers
-   - **Filter** to only `"movie"` entries
-   - **Normalize** genres: explode the list of genres into separate rows
-
-3.
-
-   ### 🗃️ Schema Definition
-
-   - `` table via SQLAlchemy ORM
-     - `movie_id` (TEXT, PK)
-     - `title` (TEXT)
-     - `is_adult` (BOOLEAN)
-     - `year` (INTEGER)
-     - `runtime_minutes` (INTEGER)
-     - `average_rating` (FLOAT)
-     - `num_votes` (BIGINT)
-   - `` table via SQLAlchemy ORM
-     - `id` (SERIAL, PK)
-     - `movie_id` (TEXT, FK → `movies.movie_id`)
-     - `genre` (TEXT)
-
-4.
-
-   ### 💾 Load
-
-   - Recreate tables with `Base.metadata.create_all(engine)`
-   - Bulk‑insert `movies` and `movie_genres` DataFrames using `df.to_sql(..., method='multi')`
+- Create tables via SQLAlchemy ORM
+- Bulk-insert `movies` and `movie_genres` DataFrames using `df.to_sql(..., method='multi')`
 
 ---
 
-## 🛠️ How to Run
+## Running
 
-1. Launch Jupyter Notebook:
-   ```bash
-   jupyter notebook
-   ```
-2. Open and **run all cells** in `` from top to bottom.
-3. Confirm in your PostgreSQL client (e.g. pgAdmin) that:
-   - `movies` table contains all records
-   - `movie_genres` table contains the exploded genres
+```bash
+jupyter notebook
+```
+
+Open `ETL file.ipynb` and run all cells top to bottom. Verify in your PostgreSQL client that `movies` and `movie_genres` were populated.
 
 ---
 
-## 🔍 Database Schema
+## Database Schema
 
-![ERD Screenshot](assets/erd_screenshot.png)
+![ERD](assets/erd_screenshot.png)
 
-### **movies**
+**movies**
 
-| Column            | Type    | Description                    |
-| ----------------- | ------- | ------------------------------ |
-| `movie_id`        | TEXT    | IMDb title identifier (tconst) |
-| `title`           | TEXT    | Movie’s primary title          |
-| `is_adult`        | BOOLEAN | Adult‑only flag                |
-| `year`            | INTEGER | Release year                   |
-| `runtime_minutes` | INTEGER | Duration (minutes)             |
-| `average_rating`  | FLOAT   | IMDb user rating (0–10)        |
-| `num_votes`       | INT     | Number of votes                |
+| Column | Type | Description |
+|---|---|---|
+| `movie_id` | TEXT | IMDb title identifier (tconst) |
+| `title` | TEXT | Primary title |
+| `is_adult` | BOOLEAN | Adult-only flag |
+| `year` | INTEGER | Release year |
+| `runtime_minutes` | INTEGER | Duration in minutes |
+| `average_rating` | FLOAT | IMDb user rating (0-10) |
+| `num_votes` | INT | Number of votes |
 
-### **movie\_genres**
+**movie_genres**
 
-| Column     | Type   | Description                      |
-| ---------- | ------ | -------------------------------- |
-| `id`       | SERIAL | Auto‑incrementing primary key    |
-| `movie_id` | TEXT   | Foreign key → `movies.movie_id`  |
-| `genre`    | TEXT   | Single genre (one row per genre) |
+| Column | Type | Description |
+|---|---|---|
+| `id` | SERIAL | Auto-incrementing primary key |
+| `movie_id` | TEXT | Foreign key to `movies.movie_id` |
+| `genre` | TEXT | Single genre per row |
 
 ---
 
-## 📦 Dependencies
+## Dependencies
 
-All required packages are listed in `` (install with `pip install -r requirements.txt`):
+Listed in `requirements.txt`:
 
 - pandas
 - numpy
 - SQLAlchemy
-- psycopg2‑binary
-- Jupyter (for notebook)
+- psycopg2-binary
+- jupyter
 
 ---
 
-## 📝 .gitignore
+## License
 
-```gitignore
-# Python
-__pycache__/
-*.py[cod]
-
-# Jupyter
-.ipynb_checkpoints/
-
-# Virtual environments
-.venv/
-venv/
-
-# Misc
-*.log
-```
-
----
-
-## 👤 Author
-
-Hezi777
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
-
+MIT - see the [LICENSE](LICENSE) file for details.
